@@ -157,37 +157,35 @@ constexpr int dSize = 8;
 vector<string> board;
 int rows = 0, cols = 0;
 
-static void HinterStart(); // 算法核心
-static bool ValidMove(int x, int y);
-static void UpdateStateAround(int x, int y, char old_state, char new_state, unordered_set<int> &update_list); // 更新周围八个格子的状态
-
-int main() {
-    // 处理输入以及变量初始化
-    string line;
-    while (cin >> line) {
-        // 简单检查输入是否正确
-        for (auto &ch : line) {
-            if (!VALID_CH(ch)) {
-                cout << "unknown character \'" << ch << "\' in \"" << line << "\"" << endl;
-                return 0;
-            }
-        }
-        board.push_back(line);
-        ++rows;
-    }
-    if (rows == 0) {
-        cout << "invalid board input with rows = 0 !" << endl;
-        return 0;
-    }
-    cols = board[0].size();
-    
-    // 执行算法并输出
-    HinterStart();
-    return 0;
+static bool ValidMove(int x, int y) {
+    return 0 <= x && x < rows && 0 <= y && y < cols;
 }
 
-static void HinterStart() {
-    unordered_set<int> safe_list, mine_list;
+static void UpdateStateAround(int x, int y, char old_state, char new_state, unordered_set<int> &update_list) {
+    int nx, ny;
+    for (int k = 0; k < dSize; ++k) {
+        nx = x + dx[k];
+        ny = y + dy[k];
+        if (ValidMove(nx, ny) && board[nx][ny] == old_state) {
+            board[nx][ny] = new_state;
+            update_list.insert(nx * cols + ny);
+        }
+    }
+}
+
+static bool AroundHasDigit(int x, int y) {
+    int nx, ny;
+    for (int k = 0; k < dSize; ++k) {
+        nx = x + dx[k];
+        ny = y + dy[k];
+        if (ValidMove(nx, ny) && isdigit(board[nx][ny])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool HinterStart(unordered_set<int> safe_list, unordered_set<int> mine_list) {
     bool finish = false;
     int nx, ny;
     while (!finish) {
@@ -215,13 +213,13 @@ static void HinterStart() {
                 if (cnt == dangers) {
                     // 全部雷都已经扫出来了，剩下的方块都是安全的，标记一下
                     UpdateStateAround(x, y, S_UNCLICKED, S_SAFE, safe_list);
-                    if (unknowns != 0) {
-                        finish = false; // 下轮继续迭代更新
-                    }
                 } else if (unknowns == cnt - dangers) {
                     // 剩下的都是雷，需要标记一下
                     finish = false; // 下轮继续迭代更新
                     UpdateStateAround(x, y, S_UNCLICKED, S_MARKED, mine_list);
+                } else if (unknowns == 0) {
+                    // 错误的棋盘
+                    return false;
                 }
             }
         }
@@ -247,7 +245,19 @@ static void HinterStart() {
             board[x][y] = COUNT(cnt);
         }
     }
-    // 输出提示
+    // 猜格子
+    for (int x = 0; x < rows; ++x) {
+        for (int y = 0; y < cols; ++y) {
+            if (board[x][y] == S_UNCLICKED && AroundHasDigit(x, y)) {
+                // TODO
+            }
+        }
+    }
+    return true;
+}
+
+// 输出提示
+void OutputResult(unordered_set<int> safe_list, unordered_set<int> mine_list) {
     for (int x = 0, idx = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y, ++idx) {
             if (safe_list.find(idx) != safe_list.end()) {
@@ -262,18 +272,29 @@ static void HinterStart() {
     }
 }
 
-static bool ValidMove(int x, int y) {
-    return 0 <= x && x < rows && 0 <= y && y < cols;
+int main() {
+    // 处理输入以及变量初始化
+    string line;
+    while (cin >> line) {
+        // 简单检查输入是否正确
+        for (auto &ch : line) {
+            if (!VALID_CH(ch)) {
+                cout << "unknown character \'" << ch << "\' in \"" << line << "\"" << endl;
+                return 0;
+            }
+        }
+        board.push_back(line);
+        ++rows;
+    }
+    if (rows == 0) {
+        cout << "invalid board input with rows = 0 !" << endl;
+        return 0;
+    }
+    cols = board[0].size();
+    // 执行算法并输出提示
+    unordered_set<int> safe_list, mine_list;
+    HinterStart(safe_list, mine_list);
+    OutputResult(safe_list, mine_list);
+    return 0;
 }
 
-static void UpdateStateAround(int x, int y, char old_state, char new_state, unordered_set<int> &update_list) {
-    int nx, ny;
-    for (int k = 0; k < dSize; ++k) {
-        nx = x + dx[k];
-        ny = y + dy[k];
-        if (ValidMove(nx, ny) && board[nx][ny] == old_state) {
-            board[nx][ny] = new_state;
-            update_list.insert(nx * cols + ny);
-        }
-    }
-}
