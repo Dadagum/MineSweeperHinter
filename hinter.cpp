@@ -226,6 +226,28 @@ static void HinterStart() {
             }
         }
     }
+    // 更新安全格子状态
+    for (auto &val : safe_list) {
+        int x = val / cols, y = val % cols;
+        bool can_update = true;
+        int cnt = 0;
+        for (int k = 0; k < dSize; ++k) {
+            nx = x + dx[k];
+            ny = y + dy[k];
+            if (!ValidMove(nx, ny)) {
+                continue;
+            } else if (board[nx][ny] == S_UNCLICKED) {
+                can_update = false;
+                break;
+            } else if (IN_DANGER(board[nx][ny])) {
+                ++cnt;
+            }
+        }
+        if (can_update) {
+            board[x][y] = COUNT(cnt);
+        }
+    }
+    // 输出提示
     for (int x = 0, idx = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y, ++idx) {
             if (safe_list.find(idx) != safe_list.end()) {
