@@ -235,6 +235,7 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
         // 左方的空闲格子需要提供 delta 个雷
         if (lu.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
+            cout << "context -> (x = " << x << ", y = " << y << ") , lu.size() = " << lu.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (lu.size() == delta) {
             // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
@@ -248,6 +249,7 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
         // 右方的空闲格子需要提供 delta 个雷
         if (ru.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
+            cout << "context -> (x = " << x << ", y = " << y << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (ru.size() == delta) {
             // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
@@ -305,6 +307,7 @@ static void SubtractionFormulaVertical(int x, int y, bool &finish, unordered_set
         // 左方的空闲格子需要提供 delta 个雷
         if (lu.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
+            cout << "context -> (x = " << x << ", y = " << y << ") , lu.size() = " << lu.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (lu.size() == delta) {
             // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
@@ -318,6 +321,7 @@ static void SubtractionFormulaVertical(int x, int y, bool &finish, unordered_set
         // 右方的空闲格子需要提供 delta 个雷
         if (ru.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
+            cout << "context -> (x = " << x << ", y = " << y << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (ru.size() == delta) {
             // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
