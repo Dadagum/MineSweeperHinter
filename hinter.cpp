@@ -137,7 +137,7 @@ void print_no_reset(const string& s, const int textcolor, const int backgroundco
  * 2. 输出：
  * 提示玩家哪些空格一定是安全(即可点击的)，输出在棋盘中为 'S'
  * 一定是有雷的，输出在棋盘中为 'M'
- * 或者是暂时还无法判断，需要玩家自行点击
+ * 或者是暂时还无法判断，需要玩家自行随机点击
  */
 
 // 棋盘状态定义以及相关判断
@@ -154,8 +154,10 @@ using pii = pair<int,int>;
 const int dx[] = {-1, 0, 1, -1, 1, -1, 0, 1};
 const int dy[] = {-1, -1, -1, 0, 0, 1, 1, 1};
 constexpr int dSize = 8;
-constexpr int leftStartIdx = 0; // 减法公式左独区域开始下标 
-constexpr int rightStartIdx = 5; // 减法公式右独区域开始下标
+const int vdx[] = {1, 1, 1, -1, -1, -1};
+const int vdy[] = {-1, 0, 1, -1, 0, 1};
+const int hdx[] = {-1, 0, 1, -1, 0, 1};
+const int hdy[] = {-1, -1, -1, 1, 1, 1};
 constexpr int aSize = 3; // 减法公式独区域方格个数 
 vector<string> board;
 int rows = 0, cols = 0;
@@ -190,142 +192,140 @@ static void MarkAsSafeOrMine(vector<pii> &vt, unordered_set<int> &st, char state
  */
 static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &safe_list, unordered_set<int> &mine_list) {
     // 需要统计的变量有：独自区域的雷数、未开个数、安全个数 
-    vector<pii> lb, rb, lu, ru, ls, rs;
+    vector<pii> lb, rb, lu, ru;
     int nx, ny;
     // 统计左区域
     for (int k = 0; k < aSize; ++k) {
-        nx = x + dx[leftStartIdx + k];
-        ny = y + dy[leftStartIdx + k];
+        nx = x + hdx[k];
+        ny = y + hdy[k];
         if (!ValidMove(nx, ny)) {
-            ls.push_back({nx, ny});
+            continue;
         } else if (IN_DANGER(board[nx][ny])) {
             lb.push_back({nx, ny});
         } else if (board[nx][ny] == S_UNCLICKED) {
             lu.push_back({nx, ny});
-        } else {
-            ls.push_back({nx, ny});
-        }				
+        }	
     } 
     // 统计右区域
     for (int k = 0; k < aSize; ++k) {
-        nx = x + dx[rightStartIdx + k];
-        ny = y + dy[rightStartIdx + k];
+        nx = x + hdx[aSize + k];
+        ny = y + 1 + hdy[aSize + k];
         if (!ValidMove(nx, ny)) {
-            rs.push_back({nx, ny});
+            continue;
         } else if (IN_DANGER(board[nx][ny])) {
             rb.push_back({nx, ny});
         } else if (board[nx][ny] == S_UNCLICKED) {
             ru.push_back({nx, ny});
-        } else {
-            rs.push_back({nx, ny});
-        }				
+        }
     } 
-    int delta = board[x][y] - board[x][y+1];
-    // 1.首先处理特殊情况：独占区域没有雷
-    if (rs.size() == aSize) {
-        if (delta < 0) {
-            // 可以知道在合法的扫雷页面下，原先的 delta 肯定 >= 0
-            cout << "invalid board input: line " << __LINE__ << endl;
-            return;
-        }
-        if (lb.size() > delta) {
-            cout << "invalid board input: line " << __LINE__ << endl;
-            return;
-        } else if (lb.size() == delta) {
-            // 剩下的所有未开的格子都是安全的
-            if (lu.size()) {
-                MarkAsSafeOrMine(lu, safe_list, S_SAFE);
-                finish = false;
-            }
-        } else if (lb.size() + lu.size() == delta) {
-            // 剩下的所有未开的格子都是危险的
-            MarkAsSafeOrMine(lu, mine_list, S_MARKED);
-            finish = false;
-        }
-        // 其它情况暂时判断不了哪一个格子是可以开的
-        // ...
-        return;
-    } else if (ls.size() == aSize) {
-        if (delta > 0) {
-            // 可以知道在合法的扫雷页面下，原先的 delta 肯定 <= 0
-            cout << "invalid board input: line " << __LINE__ << endl;
-            return;
-        }
-        delta = -delta;
-        if (rb.size() > delta) {
-            cout << "invalid board input: line " << __LINE__ << endl;
-        } else if (rb.size() == delta) {
-            // 剩下的所有未开的格子都是安全的
-            if (ru.size()) {
-                MarkAsSafeOrMine(ru, safe_list, S_SAFE);
-                finish = false;
-            }
-        } else if (rb.size() + ru.size() == delta) {
-            // 剩下的所有未开的格子都是危险的
-            MarkAsSafeOrMine(ru, mine_list, S_MARKED);
-            finish = false;
-        }
-        // 其它情况暂时判断不了哪一个格子是可以开的
-        return;
-    }
-
-    // 2.两边独占区域雷数相等
+    int should = board[x][y] - board[x][y+1];
+    int now = lb.size() - rb.size();
+    int delta = should - now;
     if (delta == 0) {
-        int db = lb.size() - rb.size(); // 当前相差的雷数
-        if (db == 0) {
-            // 左边格子全开，那么右边没有开的格子都是安全的
-            if (lu.size() == 0 && ru.size() != 0) {
-                MarkAsSafeOrMine(ru, safe_list, S_SAFE);
-                finish = false;
-            } else if (ru.size() == 0 && lu.size() != 0) {
-                MarkAsSafeOrMine(lu, safe_list, S_SAFE);
-                finish = false;
-            }
-            // 其它情况：无法知道哪一个格子是安全的
-            return;
-        } else if (db > 0) {
-            if (db > ru.size()) {
-                cout << "invalid board input: line " << __LINE__ << endl;
-            } else if (db == ru.size()) {
-                // 右边没有开的格子都是危险的
-                MarkAsSafeOrMine(ru, mine_list, S_MARKED);
-                finish = false;
-            } 
-            // 其它情况：无法知道哪一个格子是安全的
-            return;
-        } else if (db < 0) {
-            db = -db;
-            if (db > lu.size()) {
-                cout << "invalid board input: line " << __LINE__ << endl;
-            } else if (db == lu.size()) {
-                // 右边没有开的格子都是危险的
-                MarkAsSafeOrMine(lu, mine_list, S_MARKED);
-                finish = false;
-            } 
-            // 其它情况：无法知道哪一个格子是安全的
+        // 如果一方没有空闲格子，那么另一方全部都应该是安全
+        if (lu.size() == 0 && ru.size() > 0) {
+            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
+            finish = false;
+        } else if (ru.size() == 0 && lu.size() > 0) {
+            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
+            finish = false;
         }
-        return;
+        // 双方都有空闲格子，暂时无法判断
+    } else if (delta > 0) {
+        // 左方的空闲格子需要提供 delta 个雷
+        if (lu.size() < delta) {
+            cout << "invalid board input, line : " << __LINE__ << endl;
+            finish = true;
+        } else if (lu.size() == delta) {
+            // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
+            MarkAsSafeOrMine(lu, mine_list, S_MARKED);
+            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
+            finish = false;
+        }
+        // 左方的空闲格子比需要的雷个数多，不确定哪一个是雷
+    } else {
+        delta = -delta;
+        // 右方的空闲格子需要提供 delta 个雷
+        if (ru.size() < delta) {
+            cout << "invalid board input, line : " << __LINE__ << endl;
+            finish = true;
+        } else if (ru.size() == delta) {
+            // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
+            MarkAsSafeOrMine(ru, mine_list, S_MARKED);
+            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
+            finish = false;
+        }
+        // 右方的空闲格子比需要的雷个数多，不确定哪一个是雷
     }
+}
 
-    // 3.两边独占区域数量不同
-    if (delta > 0) {
-        int db = lb.size() - rb.size(); // 当前相差的雷数
-        if (db >= 0) {
-            // 说明左边未开的格子需要提供 db 个雷
-            
-            if (lu.size() < delta) {
-                cout << "invalid board input: line " << __LINE__ << endl;
-                return;
-            } else if (lu.size() == delta) {
-                // 说明左边所有未开的格子都是雷
-                MarkAsSafeOrMine(lu, mine_list, S_MARKED);
-                finish = false;
-            }  
-            // 其它情况：无法知道哪一个格子是安全的
-        } else if (db < 0) {
-            
+// 顺时针旋转 90 度，因此这里的左其实是原本的下
+static void SubtractionFormulaVertical(int x, int y, bool &finish, unordered_set<int> &safe_list, unordered_set<int> &mine_list) {
+    // 需要统计的变量有：独自区域的雷数、未开个数、安全个数 
+    vector<pii> lb, rb, lu, ru;
+    int nx, ny;
+    // 统计左区域
+    for (int k = 0; k < aSize; ++k) {
+        nx = x + vdx[k];
+        ny = y + vdy[k];
+        if (!ValidMove(nx, ny)) {
+            continue;
+        } else if (IN_DANGER(board[nx][ny])) {
+            lb.push_back({nx, ny});
+        } else if (board[nx][ny] == S_UNCLICKED) {
+            lu.push_back({nx, ny});
         }
-        return;
+    } 
+    // 统计右区域
+    for (int k = 0; k < aSize; ++k) {
+        nx = x - 1 + vdx[aSize + k];
+        ny = y + vdy[aSize + k];
+        if (!ValidMove(nx, ny)) {
+            continue;
+        } else if (IN_DANGER(board[nx][ny])) {
+            rb.push_back({nx, ny});
+        } else if (board[nx][ny] == S_UNCLICKED) {
+            ru.push_back({nx, ny});
+        }			
+    } 
+    int should = board[x][y] - board[x-1][y];
+    int now = lb.size() - rb.size();
+    int delta = should - now;
+    if (delta == 0) {
+        // 如果一方没有空闲格子，那么另一方全部都应该是安全
+        if (lu.size() == 0 && ru.size() > 0) {
+            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
+            finish = false;
+        } else if (ru.size() == 0 && lu.size() > 0) {
+            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
+            finish = false;
+        }
+        // 双方都有空闲格子，暂时无法判断
+    } else if (delta > 0) {
+        // 左方的空闲格子需要提供 delta 个雷
+        if (lu.size() < delta) {
+            cout << "invalid board input, line : " << __LINE__ << endl;
+            finish = true;
+        } else if (lu.size() == delta) {
+            // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
+            MarkAsSafeOrMine(lu, mine_list, S_MARKED);
+            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
+            finish = false;
+        }
+        // 左方的空闲格子比需要的雷个数多，不确定哪一个是雷
+    } else {
+        delta = -delta;
+        // 右方的空闲格子需要提供 delta 个雷
+        if (ru.size() < delta) {
+            cout << "invalid board input, line : " << __LINE__ << endl;
+            finish = true;
+        } else if (ru.size() == delta) {
+            // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
+            MarkAsSafeOrMine(ru, mine_list, S_MARKED);
+            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
+            finish = false;
+        }
+        // 右方的空闲格子比需要的雷个数多，不确定哪一个是雷
     }
 }
 
@@ -372,12 +372,19 @@ static bool HinterStart(unordered_set<int> &safe_list, unordered_set<int> &mine_
 
     // 2. 减法公式 
     // 水平方向 
-    finish = true;
     for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols - 1; ++y) {
             if (isdigit(board[x][y]) && isdigit(board[x][y+1])) {
                 SubtractionFormula(x, y, finish, safe_list, mine_list);
 			} 
+        }
+    }
+    // 竖直方向
+    for (int x = 1; x < rows; ++x) {
+        for (int y = 0; y < cols; ++y) {
+            if (isdigit(board[x][y]) && isdigit(board[x-1][y])) {
+                SubtractionFormulaVertical(x, y, finish, safe_list, mine_list);
+            }
         }
     }
     if (!finish) {
