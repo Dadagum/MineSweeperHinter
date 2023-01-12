@@ -430,7 +430,7 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
 
     // 统计全图数字格的信息
     int unknowns, dangers;
-    for (int x = 0; x < cols; ++x) {
+    for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y) {
             if (isdigit(board[x][y])) {
                 unknowns = dangers = 0;
@@ -442,7 +442,7 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
     }
 
     // 针对所有数字边缘格，查看是否能为雷
-    for (int x = 0; x < cols; ++x) {
+    for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y) {
             if (!isDigitEdgeGrid(board, x, y)) {
                 continue;
@@ -532,9 +532,8 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
     }
 
     // 3. 对边缘格子进行暴力搜索
-    if (!SearchEdgeDigitGrid(board, safe_list, mine_list, search_dep, finish)) {
+    // SearchEdgeDigitGrid(board, safe_list, mine_list, search_dep, finish);
 
-    }
     // 进行多轮迭代
     if (!finish) {
     	return HinterStart(board, safe_list, mine_list, true);
@@ -544,7 +543,6 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
 
 // 输出提示
 void OutputResult(vector<string> &board, unordered_set<int> safe_list, unordered_set<int> mine_list) {
-    print("Success!", color_red, color_green);
     for (int x = 0, idx = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y, ++idx) {
             if (safe_list.find(idx) != safe_list.end()) {
