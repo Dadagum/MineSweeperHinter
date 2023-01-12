@@ -187,17 +187,16 @@ static void MarkAsSafeOrMine(vector<pii> &vt, unordered_set<int> &st, char state
 
 /**
  * @brief 运用减法公式再进行填充
- * (x, y) (x, y + 1) 两个点为中间共享区域的两个点
  * 参考：https://zhuanlan.zhihu.com/p/27439584
  */
-static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &safe_list, unordered_set<int> &mine_list) {
+static void SubtractionFormula(pii p1, pii p2, bool &finish, unordered_set<int> &safe_list, unordered_set<int> &mine_list, const int dx_[aSize], const int dy_[aSize]) {
     // 需要统计的变量有：独自区域的雷数、未开个数、安全个数 
     vector<pii> lb, rb, lu, ru;
     int nx, ny;
     // 统计左区域
     for (int k = 0; k < aSize; ++k) {
-        nx = x + hdx[k];
-        ny = y + hdy[k];
+        nx = p1.first + dx_[k];
+        ny = p1.second + dy_[k];
         if (!ValidMove(nx, ny)) {
             continue;
         } else if (IN_DANGER(board[nx][ny])) {
@@ -208,8 +207,8 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
     } 
     // 统计右区域
     for (int k = 0; k < aSize; ++k) {
-        nx = x + hdx[aSize + k];
-        ny = y + 1 + hdy[aSize + k];
+        nx = p2.first + dx_[aSize + k];
+        ny = p2.second + dy_[aSize + k];
         if (!ValidMove(nx, ny)) {
             continue;
         } else if (IN_DANGER(board[nx][ny])) {
@@ -218,7 +217,7 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
             ru.push_back({nx, ny});
         }
     } 
-    int should = board[x][y] - board[x][y+1];
+    int should = board[p1.first][p1.second] - board[p2.first][p2.second];
     int now = lb.size() - rb.size();
     int delta = should - now;
     if (delta == 0) {
@@ -235,7 +234,7 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
         // 左方的空闲格子需要提供 delta 个雷
         if (lu.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
-            cout << "context -> (x = " << x << ", y = " << y << ") , lu.size() = " << lu.size() << " , delta = " << delta << endl;
+            cout << "context -> (x = " << p1.first << ", y = " << p1.second << ") , lu.size() = " << lu.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (lu.size() == delta) {
             // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
@@ -249,79 +248,7 @@ static void SubtractionFormula(int x, int y, bool &finish, unordered_set<int> &s
         // 右方的空闲格子需要提供 delta 个雷
         if (ru.size() < delta) {
             cout << "invalid board input, line : " << __LINE__ << endl;
-            cout << "context -> (x = " << x << ", y = " << y << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
-            finish = true;
-        } else if (ru.size() == delta) {
-            // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
-            MarkAsSafeOrMine(ru, mine_list, S_MARKED);
-            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
-            finish = false;
-        }
-        // 右方的空闲格子比需要的雷个数多，不确定哪一个是雷
-    }
-}
-
-// 顺时针旋转 90 度，因此这里的左其实是原本的下
-static void SubtractionFormulaVertical(int x, int y, bool &finish, unordered_set<int> &safe_list, unordered_set<int> &mine_list) {
-    // 需要统计的变量有：独自区域的雷数、未开个数、安全个数 
-    vector<pii> lb, rb, lu, ru;
-    int nx, ny;
-    // 统计左区域
-    for (int k = 0; k < aSize; ++k) {
-        nx = x + vdx[k];
-        ny = y + vdy[k];
-        if (!ValidMove(nx, ny)) {
-            continue;
-        } else if (IN_DANGER(board[nx][ny])) {
-            lb.push_back({nx, ny});
-        } else if (board[nx][ny] == S_UNCLICKED) {
-            lu.push_back({nx, ny});
-        }
-    } 
-    // 统计右区域
-    for (int k = 0; k < aSize; ++k) {
-        nx = x - 1 + vdx[aSize + k];
-        ny = y + vdy[aSize + k];
-        if (!ValidMove(nx, ny)) {
-            continue;
-        } else if (IN_DANGER(board[nx][ny])) {
-            rb.push_back({nx, ny});
-        } else if (board[nx][ny] == S_UNCLICKED) {
-            ru.push_back({nx, ny});
-        }			
-    } 
-    int should = board[x][y] - board[x-1][y];
-    int now = lb.size() - rb.size();
-    int delta = should - now;
-    if (delta == 0) {
-        // 如果一方没有空闲格子，那么另一方全部都应该是安全
-        if (lu.size() == 0 && ru.size() > 0) {
-            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
-            finish = false;
-        } else if (ru.size() == 0 && lu.size() > 0) {
-            MarkAsSafeOrMine(lu, safe_list, S_SAFE);
-            finish = false;
-        }
-        // 双方都有空闲格子，暂时无法判断
-    } else if (delta > 0) {
-        // 左方的空闲格子需要提供 delta 个雷
-        if (lu.size() < delta) {
-            cout << "invalid board input, line : " << __LINE__ << endl;
-            cout << "context -> (x = " << x << ", y = " << y << ") , lu.size() = " << lu.size() << " , delta = " << delta << endl;
-            finish = true;
-        } else if (lu.size() == delta) {
-            // 左方的空闲格子全部都是雷，右方的空闲格子全部都是安全
-            MarkAsSafeOrMine(lu, mine_list, S_MARKED);
-            MarkAsSafeOrMine(ru, safe_list, S_SAFE);
-            finish = false;
-        }
-        // 左方的空闲格子比需要的雷个数多，不确定哪一个是雷
-    } else {
-        delta = -delta;
-        // 右方的空闲格子需要提供 delta 个雷
-        if (ru.size() < delta) {
-            cout << "invalid board input, line : " << __LINE__ << endl;
-            cout << "context -> (x = " << x << ", y = " << y << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
+            cout << "context -> (x = " << p1.first << ", y = " << p2.second << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
             finish = true;
         } else if (ru.size() == delta) {
             // 右方的空闲格子全部都是雷，左方的空闲格子全部都是安全
@@ -379,15 +306,15 @@ static bool HinterStart(unordered_set<int> &safe_list, unordered_set<int> &mine_
     for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols - 1; ++y) {
             if (isdigit(board[x][y]) && isdigit(board[x][y+1])) {
-                SubtractionFormula(x, y, finish, safe_list, mine_list);
-			} 
+                SubtractionFormula(make_pair(x, y), make_pair(x, y+1), finish, safe_list, mine_list, hdx, hdy);
+            } 
         }
     }
     // 竖直方向
     for (int x = 1; x < rows; ++x) {
         for (int y = 0; y < cols; ++y) {
             if (isdigit(board[x][y]) && isdigit(board[x-1][y])) {
-                SubtractionFormulaVertical(x, y, finish, safe_list, mine_list);
+                SubtractionFormula(make_pair(x, y), make_pair(x-1, y), finish, safe_list, mine_list, vdx, vdy);
             }
         }
     }
@@ -438,7 +365,7 @@ int main() {
     if (!f) {
     	cout << "invalid board input !" << endl;
     	return 0;
-	}
+    }
     OutputResult(safe_list, mine_list);
     return 0;
 }
