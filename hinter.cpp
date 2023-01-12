@@ -295,6 +295,8 @@ static bool HinterStart(unordered_set<int> &safe_list, unordered_set<int> &mine_
                     UpdateStateAround(x, y, S_UNCLICKED, S_MARKED, mine_list);
                 } else if (unknowns == 0) {
                     // 错误的棋盘
+                    cout << "invalid board input, line : " << __LINE__ << endl;
+                    cout << "context -> (x = " << x << ", y = " << y << ") , cnt = " << cnt << " , dangers = " << dangers << " , unknowns = " << unknowns << endl;
                     return false;
                 }
             }
