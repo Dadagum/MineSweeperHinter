@@ -27,7 +27,7 @@ A board will output which tell you which grids are safe or not for sure.
 - 'S' with green blackground: represents a safe grid so you can click it later.
 - 'M' with red blackground: represents a mine grid so you can mark it down later.
 
-If nothing changes, the program fails to work and more information must be provided.
+If nothing changes, the program fails to work because it isn't smart enough or more information should be provided.
 
 # EXAMPLE
 ![示例图片](https://raw.githubusercontent.com/Dadagum/MineSweeperHinter/master/minesweeper.png)
@@ -35,3 +35,11 @@ If nothing changes, the program fails to work and more information must be provi
 # NOTE
 - Make sure that your input is correct and you should input the whole board instead of some parts of it. If you want to just solve part of your board, please use '#' around it to avoid potential errors.
 - This program is simple and just for fun. 
+
+# FAIL TO SOLVE RIGHT NOW
+## exp1
+```
+###
+#21
+#10
+```
