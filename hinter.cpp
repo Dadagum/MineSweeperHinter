@@ -145,8 +145,8 @@ void print_no_reset(const string& s, const int textcolor, const int backgroundco
 #define S_MARKED    ('M')
 #define S_MINE      ('X')
 #define S_SAFE      ('S') // 非输入字符
-#define COUNT(cnt)  ('0' + cnt)
-#define GET_COUNT(ch) (ch - '0')
+#define CHAR_COUNT(cnt)  ('0' + cnt)
+#define INT_COUNT(ch) (ch - '0')
 #define IN_DANGER(ch) (ch == S_MARKED || ch == S_MINE) // 雷区 
 #define VALID_CH(ch) (isdigit(ch) || ch == S_UNCLICKED || IN_DANGER(ch))
 
@@ -197,6 +197,7 @@ static void UpdateStateAround(vector<string> &board, int x, int y, char old_stat
 // 得到格子四周的格子信息(雷数、未开数、安全数)
 static void GetGridInfo(vector<string> &board, int x, int y, int &dangers, int &unknowns) {
     int nx, ny;    
+    dangers = unknowns = 0;
     for (int k = 0; k < dSize; ++k) {
         nx = x + dx[k];
         ny = y + dy[k];
@@ -282,7 +283,7 @@ static bool SubtractionFormula(vector<string> &board, pii p1, pii p2, bool &fini
         // 右方的空闲格子需要提供 delta 个雷
         if (ru.size() < delta) {
             cout << "warning: invalid board input, line " << __LINE__ << endl;
-            cout << "context -> (x = " << p1.first << ", y = " << p2.second << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
+            cout << "context -> (x = " << p1.first << ", y = " << p1.second << ") , ru.size() = " << ru.size() << " , delta = " << delta << endl;
             finish = true;
             return false;
         } else if (ru.size() == delta) {
@@ -334,14 +335,14 @@ static bool CheckIfGridAroundIsValid(vector<string> &board, int x, int y, vector
         if (!ValidMove(nx, ny) || !isdigit(board[nx][ny])) {
             continue;
         }
-        if (!IsValidGrid(GET_COUNT(board[nx][ny]), g_dangers[nx][ny], g_unknowns[nx][ny])) {
+        if (!IsValidGrid(INT_COUNT(board[nx][ny]), g_dangers[nx][ny], g_unknowns[nx][ny])) {
             return false;
         }
     }
     return true;
 }
 
-// 在节点四周寻找特定状态的节点
+// 在节点四周寻找特定状态的方格
 static vector<pii> FindGridAround(vector<string> &board, int x, int y, char state) {
     vector<pii> ans;
     int nx, ny;
@@ -354,10 +355,23 @@ static vector<pii> FindGridAround(vector<string> &board, int x, int y, char stat
     return ans;
 } 
 
+// 计算四周为某一种状态的方格的个数
+static int CountGridAround(vector<string> &board, int x, int y, char state) {
+    int ans = 0;
+    int nx, ny;
+    for (int i = 0; i < dSize; ++i) {
+        nx = x + dx[i], ny = y + dy[i];
+        if (ValidMove(nx, ny) && board[nx][ny] == state) {
+            ++ans;
+        }
+    }
+    return ans;
+}
+
 // 普通填充算法, (x, y) 必须为数字格
 static bool NaiveFill(vector<string> &board, int x, int y, unordered_set<int> &safe_list, unordered_set<int> &mine_list, bool &finish) {
     int nx, ny;
-    int cnt = GET_COUNT(board[x][y]), dangers = 0, unknowns = 0;
+    int cnt = INT_COUNT(board[x][y]), dangers = 0, unknowns = 0;
     GetGridInfo(board, x, y, dangers, unknowns);
     //cout << cnt << " " << dangers << " " << unknowns << endl;
     if (cnt == dangers) {
@@ -389,7 +403,7 @@ static bool TryFillMineAround(vector<string> &board, int x, int y, int search_de
         return true;
     }
     // 检查当前节点是否有效
-    if (!IsValidGrid(GET_COUNT(board[x][y]), g_dangers[x][y], g_unknowns[x][y])) {
+    if (!IsValidGrid(INT_COUNT(board[x][y]), g_dangers[x][y], g_unknowns[x][y])) {
        // cout << "invalid gird x = " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , unknowns = " << g_unknowns[x][y] << endl;
         return false; // 无效节点，直接返回填充失败
     }
@@ -521,7 +535,7 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
                 unknowns = dangers = 0;
                 GetGridInfo(board, x, y, dangers, unknowns);
                 g_unknowns[x][y] = unknowns;
-                g_dangers[x][y] = GET_COUNT(board[x][y]) - dangers;
+                g_dangers[x][y] = INT_COUNT(board[x][y]) - dangers;
             }
         }
     }
@@ -573,14 +587,14 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
 }
 
 /**
- * @brief 基本思路：朴素填充 + 减法公式
+ * @brief 基本思路：朴素填充 + 减法公式 + DFS 暴力搜索
  * 
  * @param safe_list 
  * @param mine_list 
  * @return true 
  * @return false 
  */
-static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, int search_dep_) {
+static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, unordered_set<int> &dfs_safe_list, unordered_set<int> &dfs_mine_list, int search_dep_) {
     // 1.普通填充
     bool finish = false;
     int nx, ny;
@@ -619,8 +633,33 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
 
     // 进行多轮迭代
     if (!finish) {
-    	return HinterStart(board, safe_list, mine_list, search_dep);
+    	return HinterStart(board, safe_list, mine_list, dfs_safe_list, dfs_mine_list, search_dep);
 	}
+
+    // 3. DFS 暴力搜索
+    bool res = SearchEdgeDigitGrid(board, dfs_safe_list, dfs_mine_list, search_dep_);
+    if (!res) {
+        return false; // 原先的排面就出问题
+    }
+
+    // 尝试对所有标记为 S 的安全格进行四周雷个数的统计
+    for (int x = 0; x < rows; ++x) {
+        for (int y = 0; y < cols; ++y) {
+            if (board[x][y] == S_SAFE) {
+                int unknowns, dangers;
+                GetGridInfo(board, x, y, dangers, unknowns);
+                if (unknowns == 0) {
+                    board[x][y] = CHAR_COUNT(dangers); // 为安全方格直接标记雷个数
+                    finish = false;
+                }
+            }
+        }
+    }
+    
+    // 再进行多次迭代，不省略前一次进行迭代是因为想尽可能减少使用 DFS 暴力搜索
+    if (!finish) {
+    	return HinterStart(board, safe_list, mine_list, dfs_safe_list, dfs_mine_list, search_dep);
+    }
     return true;
 }
 
@@ -667,15 +706,9 @@ int main() {
     unordered_set<int> safe_list, mine_list, dfs_safe_list, dfs_mine_list;
     bool f;
     // 先利用基本规则填一下
-    f = HinterStart(board, safe_list, mine_list, search_dep);
+    f = HinterStart(board, safe_list, mine_list, dfs_safe_list, dfs_mine_list, search_dep);
     if (!f) {
-    	cout << "Hinter Fails! err = 1" << endl;
-    	return 0;
-    }
-    // 利用 dfs 暴力搜索
-    f = SearchEdgeDigitGrid(board, dfs_safe_list, dfs_mine_list, search_dep);
-    if (!f) {
-    	cout << "Hinter Fails! err = 2" << endl;
+    	cout << "Hinter Fails!" << endl;
     	return 0;
     }
     OutputResult(board, safe_list, mine_list, dfs_safe_list, dfs_mine_list);

@@ -26,7 +26,8 @@ you can config the dfs search depth by modifying the variable "search_dep" in hi
 
 ## Output
 A board will output which tell you which grids are safe or not for sure.
-- 'S' with green blackground: represents a safe grid so you can click it later.
+- 'S' with green blackground: represents a safe grid, but the program doesn't know how many mines are around it. You can click it to find out later.
+- '[0 - 8]' with green blackground: represents a safe grid and the program has already calculated how many mines are around the grid.
 - 'M' with red blackground: represents a mine grid so you can mark it down later.
 
 If nothing changes, the program fails to work because it isn't smart enough or more information should be provided.
