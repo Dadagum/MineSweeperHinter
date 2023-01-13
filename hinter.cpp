@@ -160,7 +160,9 @@ const int vdy[] = {-1, 0, 1, -1, 0, 1};
 const int hdx[] = {-1, 0, 1, -1, 0, 1};
 const int hdy[] = {-1, -1, -1, 1, 1, 1};
 constexpr int aSize = 3; // 减法公式独区域方格个数 
-constexpr int search_dep = 5; // dfs 暴力边界搜索深度
+
+// 配置参数
+int search_dep = 6; // dfs 暴力边界搜索深度，可传参传入，默认为 6
 
 int rows = 0, cols = 0;
 
@@ -507,7 +509,7 @@ static void print_board(vector<string> &board) {
 }
 
 // 暴力深搜
-static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_list, int search_dep) {
+static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, int search_dep) {
     // 分别表示四周未开格子和四周未知格子还需要出多少雷
     vector<vector<int>> g_unknowns(rows, vector<int>(cols)), g_dangers(rows, vector<int>(cols));
 
@@ -524,7 +526,7 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
         }
     }
 
-    // 针对所有数字边缘的未开启格，尝试填雷
+    // 针对所有数字边缘的未开启格，尝试填雷或者设置为安全
     for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y) {
             if (board[x][y] != S_UNCLICKED || !isDigitEdgeGrid(board, x, y)) {
@@ -542,26 +544,33 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
                 board[x][y] = S_SAFE;
                 UpdateGridAroundInfo(board, g_dangers, x, y, 1); 
                 safe_list.insert(x * cols + y);
+                continue;
             } else {
                 board[x][y] = S_UNCLICKED;
                 UpdateGridAroundInfo(board, g_unknowns, x, y, 1); 
                 UpdateGridAroundInfo(board, g_dangers, x, y, 1); 
             }
             //cout << "cleaning x = " << x << " , y = " << y << " ..." << endl;
-            // debug:
-            // cout << "after status:" << endl;
-            // print_2ray(g_dangers);
-            // cout << endl;
-            // print_2ray(g_unknowns);
-            // cout << endl;
-            // print_board(board);
-            // cout << "---------" << endl;
+
+            // 设置为安全格
+            UpdateGridAroundInfo(board, g_unknowns, x, y, -1); 
+            board[x][y] = S_SAFE;
+            //cout << "marking x = " << x << " , y = " << y << " as safe..." << endl;
+            ok = CheckIfValidBoardDfs(board, x, y, search_dep, g_unknowns, g_dangers);
+            // 回溯
+            if (!ok) {
+                // 必定是雷格
+                board[x][y] = S_MARKED;
+                UpdateGridAroundInfo(board, g_dangers, x, y, -1); 
+                mine_list.insert(x * cols + y);
+            } else {
+                board[x][y] = S_UNCLICKED;
+                UpdateGridAroundInfo(board, g_unknowns, x, y, 1); 
+            }
         }
     }
     return true;
 }
-
-
 
 /**
  * @brief 基本思路：朴素填充 + 减法公式 + 暴力深搜
@@ -616,15 +625,17 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
 }
 
 // 输出提示
-void OutputResult(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, unordered_set<int> &dfs_list) {
+void OutputResult(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, unordered_set<int> &dfs_safe_list, unordered_set<int> &dfs_mine_list) {
     for (int x = 0, idx = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y, ++idx) {
             if (safe_list.find(idx) != safe_list.end()) {
                 print(string(1, board[x][y]), color_black, color_green);
             } else if (mine_list.find(idx) != mine_list.end()) {
                 print(string(1, board[x][y]), color_black, color_red);
-            } else if (dfs_list.find(idx) != dfs_list.end()) {
-                print(string(1, board[x][y]), color_black, color_yellow);
+            } else if (dfs_safe_list.find(idx) != dfs_safe_list.end()) {
+                print(string(1, board[x][y]), color_black, color_dark_green);
+            } else if (dfs_mine_list.find(idx) != dfs_mine_list.end()) {
+                print(string(1, board[x][y]), color_black, color_dark_red);
             } else {
                 cout << board[x][y];
             }
@@ -655,18 +666,18 @@ int main() {
     cols = board[0].size();
     // 执行算法并输出提示
     // dfs 算法算出来的标注未黄色
-    unordered_set<int> safe_list, mine_list, dfs_list;
+    unordered_set<int> safe_list, mine_list, dfs_safe_list, dfs_mine_list;
     bool f;
-    // f = HinterStart(board, safe_list, mine_list, search_dep);
-    // if (!f) {
-    // 	cout << "Hinter Fails! err = 1" << endl;
-    // 	return 0;
-    // }
-    f = SearchEdgeDigitGrid(board, dfs_list, search_dep);
+    f = HinterStart(board, safe_list, mine_list, search_dep);
+    if (!f) {
+    	cout << "Hinter Fails! err = 1" << endl;
+    	return 0;
+    }
+    f = SearchEdgeDigitGrid(board, dfs_safe_list, dfs_mine_list, search_dep);
     if (!f) {
     	cout << "Hinter Fails! err = 2" << endl;
     	return 0;
     }
-    OutputResult(board, safe_list, mine_list, dfs_list);
+    OutputResult(board, safe_list, mine_list, dfs_safe_list, dfs_mine_list);
     return 0;
 }
