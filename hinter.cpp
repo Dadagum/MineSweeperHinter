@@ -160,7 +160,7 @@ const int vdy[] = {-1, 0, 1, -1, 0, 1};
 const int hdx[] = {-1, 0, 1, -1, 0, 1};
 const int hdy[] = {-1, -1, -1, 1, 1, 1};
 constexpr int aSize = 3; // 减法公式独区域方格个数 
-constexpr int search_dep = 4; // dfs 暴力边界搜索深度
+constexpr int search_dep = 5; // dfs 暴力边界搜索深度
 
 int rows = 0, cols = 0;
 
@@ -187,6 +187,7 @@ static void UpdateStateAround(vector<string> &board, int x, int y, char old_stat
         ny = y + dy[k];
         if (ValidMove(nx, ny) && board[nx][ny] == old_state) {
             board[nx][ny] = new_state;
+            //cout << "x = " << nx << " , y = " << ny << " is changing from " << old_state << " to " << new_state << endl;
         }
     }
 }
@@ -293,7 +294,7 @@ static bool SubtractionFormula(vector<string> &board, pii p1, pii p2, bool &fini
     return true;
 }
 
-
+// 检查 (x, y) 四周是否有数字格
 static bool isDigitEdgeGrid(vector<string> &board, int x, int y) {
     int nx, ny;
     for (int i = 0; i < dSize; ++i) {
@@ -305,20 +306,19 @@ static bool isDigitEdgeGrid(vector<string> &board, int x, int y) {
     return false;
 }
 
-static void UpdateGridInfo(vector<vector<int>> &vt, int x, int y, int op) {
+static void UpdateGridAroundInfo(vector<string> &board, vector<vector<int>> &vt, int x, int y, int op) {
     int nx, ny;
     for (int i = 0; i < dSize; ++i) {
         nx = x + dx[i], ny = y + dy[i];
-        if (!ValidMove(nx, ny)) {
-            continue;
+        if (ValidMove(nx, ny) && isdigit(board[nx][ny])) {
+            vt[nx][ny] += op;
         }
-        vt[nx][ny] -= op;
     }
 }
 
-// 判断一个节点是否合法, cnt 为节点四周应该有的雷数，dangers 为实际雷数，unknowns 为未开盒格子数量
+// 判断一个节点是否合法, cnt 为节点四周应该有的雷数，dangers 为剩余未开雷数，unknowns 为未开盒格子数量
 static bool IsValidGrid(int cnt, int dangers, int unknowns) {
-    if (dangers >= cnt || cnt - dangers > unknowns) {
+    if (dangers < 0 || unknowns < 0 || dangers > cnt || dangers > unknowns) {
         return false;
     }
     return true;
@@ -329,10 +329,10 @@ static bool CheckIfGridAroundIsValid(vector<string> &board, int x, int y, vector
     int nx, ny;
     for (int i = 0; i < dSize; ++i) {
         nx = x + dx[i], ny = y + dy[i];
-        if (!ValidMove(nx, ny) || isdigit(board[nx][ny])) {
+        if (!ValidMove(nx, ny) || !isdigit(board[nx][ny])) {
             continue;
         }
-        if (!IsValidGrid(COUNT(board[nx][ny]), g_dangers[nx][ny], g_unknowns[nx][ny])) {
+        if (!IsValidGrid(GET_COUNT(board[nx][ny]), g_dangers[nx][ny], g_unknowns[nx][ny])) {
             return false;
         }
     }
@@ -352,79 +352,162 @@ static vector<pii> FindGridAround(vector<string> &board, int x, int y, char stat
     return ans;
 } 
 
-// 暴力搜索查看当前排面的节点是否有效
-static bool CheckIfValidBoardDfs(vector<string> &board, int x, int y, int search_dep, vector<vector<int>> &g_unknowns, vector<vector<int>> &g_dangers) {
-    // 简单检查一下四周的正确性
-    if (!CheckIfGridAroundIsValid(board, x, y, g_unknowns, g_dangers)) {
+// 普通填充算法, (x, y) 必须为数字格
+static bool NaiveFill(vector<string> &board, int x, int y, unordered_set<int> &safe_list, unordered_set<int> &mine_list, bool &finish) {
+    int nx, ny;
+    int cnt = GET_COUNT(board[x][y]), dangers = 0, unknowns = 0;
+    GetGridInfo(board, x, y, dangers, unknowns);
+    //cout << cnt << " " << dangers << " " << unknowns << endl;
+    if (cnt == dangers) {
+        // 全部雷都已经扫出来了，剩下的方块都是安全的，标记一下
+        UpdateStateAround(board, x, y, S_UNCLICKED, S_SAFE, safe_list);
+    } else if (unknowns == cnt - dangers) {
+        // 剩下的都是雷，需要标记一下
+        finish = false; // 下轮继续迭代更新
+        UpdateStateAround(board, x, y, S_UNCLICKED, S_MARKED, mine_list);
+    } else if (unknowns == 0) {
+        // 错误的棋盘
+        cout << "warning: invalid board input, line " << __LINE__ << endl;
+        cout << "context -> (x = " << x << ", y = " << y << ") , cnt = " << cnt << " , dangers = " << dangers << " , unknowns = " << unknowns << endl;
         return false;
     }
-    // 如果剩余的雷数大于 1 且已经到达暴力搜索深度，可以立刻返回，直接认为排面正确
-    if (g_dangers[x][y] > 1 && search_dep == 0) {
-        return true;
-    }
-    // 遍历四周数字节点，枚举它们没有填完的格子进行填充，只要有一个数字节点无法填充则返回 false 说明排面出错
-    int nx, ny, nx2, ny2;
-    for (int i = 0; i < dSize; ++i) {
-        // (nx, ny) 为数字格子
-        nx = x + dx[i], ny = y + dy[i];
-        if (!ValidMove(nx, ny) || isdigit(board[x][y])) {
-            continue;
-        }
-        bool ok = false;
-        // 找出数字节点附近的未开格子，只要找出一种填法是有效的，则该节点就有效
-        for (int j = 0; j < dSize; ++j) {
-            nx2 = nx + dx[j], ny2 = ny + dy[j];
-            if (!ValidMove(nx2, ny2) || board[nx2][ny2] != S_UNCLICKED) {
-                continue;
-            }
-            // 设置为雷并更新统计信息
-            UpdateGridInfo(g_unknowns, nx2, ny2, 1); 
-            UpdateGridInfo(g_dangers, nx2, ny2, 1); 
-            board[nx2][ny2] = S_MINE;
-
-            // 如果当前数字格子没有剩余的雷了，那么说明数字格子所有剩下的未开格子都是安全的
-            vector<pii> safe_list;
-            if (g_dangers[nx][ny] == 0) {
-                safe_list = FindGridAround(board, nx, ny, S_UNCLICKED);
-                UpdateStateAround(board, nx, ny, S_UNCLICKED, S_SAFE);
-                for (auto &p : safe_list) {
-                    UpdateGridInfo(g_unknowns, p.first, p.second, 1);
-                }
-                // 先对所有标记为安全的节点进行进一步的 dfs
-                for (auto &p : safe_list) {
-                    // 有一个安全节点是错误的，因此这个排面都是错的，而因为没有剩余的雷了，因此这种填法肯定是错的
-                    if (!CheckIfValidBoardDfs(board, p.first, p.second, search_dep, g_unknowns, g_dangers)) {
-                        ok = false;
-                        break;
-                    }
-                }
-                ok = ok && CheckIfValidBoardDfs(board, nx2, ny2, search_dep, g_unknowns, g_dangers);
-            } else {
-                ok = CheckIfValidBoardDfs(board, nx2, ny2, search_dep - 1, g_unknowns, g_dangers);
-            }
-            // 回溯
-            board[nx2][ny2] = S_UNCLICKED;
-            UpdateGridInfo(g_unknowns, nx2, ny2, -1); 
-            UpdateGridInfo(g_dangers, nx2, ny2, -1); 
-            for (auto &p : safe_list) {
-                board[p.first][p.second] = S_UNCLICKED;
-                UpdateGridInfo(g_unknowns, p.first, p.second, -1);
-            }
-            // 判断是否找到一种有效填法
-            if (ok) {
-                break;
-            }
-        }
-        // 该节点怎么也没有办法填充，排面出错
-        if (!ok) {
-            return false;
-        }
-    }
+    // 其它情况：剩余的空格大于雷数，暂时不知道怎么填
     return true;
 }
 
+static bool CheckIfValidBoardDfs(vector<string> &board, int x, int y, int search_dep, vector<vector<int>> &g_unknowns, vector<vector<int>> &g_dangers);
+
+// 尝试给一个数字格子四周填雷
+// (x, y) 为数字节点
+static bool TryFillMineAround(vector<string> &board, int x, int y, int search_dep, vector<vector<int>> &g_unknowns, vector<vector<int>> &g_dangers) {
+    //cout << "TryFillMineAround start with x = " << x << " , y = " << y << endl;
+    // 填充已经完成
+    if (g_dangers[x][y] == 0 && g_unknowns[x][y] == 0) {
+        //cout << "filling alreay complete with x = " << x << " , y = " << y << endl;
+        return true;
+    }
+    // 检查当前节点是否有效
+    if (!IsValidGrid(GET_COUNT(board[x][y]), g_dangers[x][y], g_unknowns[x][y])) {
+       // cout << "invalid gird x = " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , unknowns = " << g_unknowns[x][y] << endl;
+        return false; // 无效节点，直接返回填充失败
+    }
+    // 如果剩余的雷数大于 1 且已经到达暴力搜索深度，可以立刻返回，直接认为排面正确
+    if (g_dangers[x][y] > 1 && search_dep == 0) {
+        //cout << "search end " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , search_dep = " << search_dep << endl;
+        return true;
+    }
+    // 填雷是否为唯一解，如果是唯一解则本轮不算暴力搜索轮次，否则搜索轮次 -1
+    if (g_unknowns[x][y] > g_dangers[x][y]) {
+        --search_dep;
+    }
+    bool ok = true;
+    // 如果已经没有剩余的雷了(此时必定有空位置)
+    if (g_dangers[x][y] == 0) {
+       // cout << "no mines rest with x = " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , unknowns = " << g_unknowns[x][y] << endl;
+        // 说明剩下的位置都是安全的
+        vector<pii> safe_list = FindGridAround(board, x, y, S_UNCLICKED);
+        UpdateStateAround(board, x, y, S_UNCLICKED, S_SAFE);
+        for (auto &p : safe_list) {
+            UpdateGridAroundInfo(board, g_unknowns, p.first, p.second, -1);
+        }
+        // 先对所有标记为安全的节点进行进一步的 dfs
+        for (auto &p : safe_list) {
+            // 有一个安全节点是错误的，因此这个排面都是错的，因为没有剩余的雷了
+            ok = CheckIfValidBoardDfs(board, p.first, p.second, search_dep, g_unknowns, g_dangers);
+            if (!ok) {
+               // cout << "incorrect marking with safe x = " << p.first << ", y = " << p.second << endl;
+                break;
+            }
+        }
+        // 回溯
+        for (auto &p : safe_list) {
+           // cout << "x = " << p.first << " , y = " << p.second << " is changing from " << board[p.first][p.second] << " to " << S_UNCLICKED << endl;
+            board[p.first][p.second] = S_UNCLICKED;
+            UpdateGridAroundInfo(board, g_unknowns, p.first, p.second, 1);
+        }
+        // if (ok) {
+        //     cout << "fill ok! x = " << x << " , y = " << y << endl;
+        // }
+        return ok;
+    }
+    //cout << "try to fill mine around x = " << x << " , y = " << y << endl; 
+    // 找出数字节点附近的未开格子，只要找出一种填法是有效的，则该节点就有效
+    int nx, ny;
+    for (int j = 0; j < dSize; ++j) {
+        nx = x + dx[j], ny = y + dy[j];
+        if (!ValidMove(nx, ny) || board[nx][ny] != S_UNCLICKED) {
+            continue;
+        }
+        // 设置为雷并更新统计信息
+        UpdateGridAroundInfo(board, g_unknowns, nx, ny, -1); 
+        UpdateGridAroundInfo(board, g_dangers, nx, ny, -1); 
+        board[nx][ny] = S_MINE;
+       // cout << "marking x = " << nx << " , y = " << ny << " as mine..." << endl;
+        ok = CheckIfValidBoardDfs(board, nx, ny, search_dep - 1, g_unknowns, g_dangers);
+        // 回溯
+        board[nx][ny] = S_UNCLICKED;
+       // cout << "cleaning x = " << nx << " , y = " << ny << " ..." << endl;
+        UpdateGridAroundInfo(board, g_unknowns, nx, ny, 1); 
+        UpdateGridAroundInfo(board, g_dangers, nx, ny, 1); 
+        // 判断是否找到一种有效填法
+        if (ok) {
+           // cout << "fill ok! x = " << x << " , y = " << y << endl;
+            return true;
+        }
+    }
+    return false;
+}
+
+// 是暴力搜索查看当前排面的节点是否有效
+// (x, y) 为标记为安全节点或者是标记为雷
+static bool CheckIfValidBoardDfs(vector<string> &board, int x, int y, int search_dep, vector<vector<int>> &g_unknowns, vector<vector<int>> &g_dangers) {
+    //cout << "checkIfValid safe or mine with x = " << x << " , y = " << y << endl;
+    // 遍历四周数字节点，枚举它们没有填完的格子进行填充，只要有一个数字节点无法填充则返回 false 说明排面出错
+    int nx, ny;
+    for (int i = 0; i < dSize; ++i) {
+        // (nx, ny) 为数字格子
+        nx = x + dx[i], ny = y + dy[i];
+        if (!ValidMove(nx, ny) || !isdigit(board[nx][ny])) {
+            continue;
+        }
+        // 该节点怎么也没有办法填充，排面出错，说明 (x, y) 填错了
+        if (!TryFillMineAround(board, nx, ny, search_dep, g_unknowns, g_dangers)) {
+            //cout << "invalid safe or mine x = " << x << " , y = " << y << endl;
+            return false;
+        }
+    }
+    //cout << "valid safe or mine " << x << " " << y << endl;
+    return true;
+}
+
+// for debug
+template<typename T>
+static void print_2ray(vector<vector<T>> &vt) {
+    int n = vt.size();
+    if (n == 0) {
+        return;
+    }
+    int m = vt[0].size();
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < m; ++j) {
+            cout << vt[i][j] << " ";
+        }
+        cout << endl;
+    }
+}
+
+// for debug
+static void print_board(vector<string> &board) {
+    for (int x = 0, idx = 0; x < rows; ++x) {
+        for (int y = 0; y < cols; ++y, ++idx) {
+            cout << board[x][y];
+        }
+        cout << endl;
+    }
+}
+
 // 暴力深搜
-static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, int search_dep, bool &finish) {
+static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_list, int search_dep) {
     // 分别表示四周未开格子和四周未知格子还需要出多少雷
     vector<vector<int>> g_unknowns(rows, vector<int>(cols)), g_dangers(rows, vector<int>(cols));
 
@@ -441,34 +524,44 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
         }
     }
 
-    // 针对所有数字边缘格，查看是否能为雷
+    // 针对所有数字边缘的未开启格，尝试填雷
     for (int x = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y) {
-            if (!isDigitEdgeGrid(board, x, y)) {
+            if (board[x][y] != S_UNCLICKED || !isDigitEdgeGrid(board, x, y)) {
                 continue;
             }
             // 设置为雷并更新统计信息
+            UpdateGridAroundInfo(board, g_unknowns, x, y, -1); 
+            UpdateGridAroundInfo(board, g_dangers, x, y, -1); 
             board[x][y] = S_MINE;
-            UpdateGridInfo(g_unknowns, x, y, 1); 
-            UpdateGridInfo(g_dangers, x, y, 1); 
-            
-           if (!CheckIfValidBoardDfs(board, x, y, search_dep, g_unknowns, g_dangers)) {
-                // 不能为雷，即肯定是安全节点
-                cout << "log : adding safe point (x = " << x << ", y = " << y << "by DFS" << endl;
-                safe_list.insert(x * cols + y);
+            //cout << "marking x = " << x << " , y = " << y << " as mine..." << endl;
+            bool ok = CheckIfValidBoardDfs(board, x, y, search_dep, g_unknowns, g_dangers);
+            // 回溯
+            // 说明该格子不能为雷，即肯定是安全节点
+            if (!ok) {
                 board[x][y] = S_SAFE;
-                UpdateGridInfo(g_dangers, x, y, -1);
-                finish = false;
-           } else {
-                // 回溯
+                UpdateGridAroundInfo(board, g_dangers, x, y, 1); 
+                safe_list.insert(x * cols + y);
+            } else {
                 board[x][y] = S_UNCLICKED;
-                UpdateGridInfo(g_unknowns, x, y, -1);
-                UpdateGridInfo(g_dangers, x, y, -1);
-           }
+                UpdateGridAroundInfo(board, g_unknowns, x, y, 1); 
+                UpdateGridAroundInfo(board, g_dangers, x, y, 1); 
+            }
+            //cout << "cleaning x = " << x << " , y = " << y << " ..." << endl;
+            // debug:
+            // cout << "after status:" << endl;
+            // print_2ray(g_dangers);
+            // cout << endl;
+            // print_2ray(g_unknowns);
+            // cout << endl;
+            // print_board(board);
+            // cout << "---------" << endl;
         }
     }
     return true;
 }
+
+
 
 /**
  * @brief 基本思路：朴素填充 + 减法公式 + 暴力深搜
@@ -486,23 +579,7 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
         finish = true;
         for (int x = 0; x < rows; ++x) {
             for (int y = 0; y < cols; ++y) {
-                if (!isdigit(board[x][y])) {
-                    continue;
-                }
-                int cnt = GET_COUNT(board[x][y]), dangers = 0, unknowns = 0;
-                GetGridInfo(board, x, y, dangers, unknowns);
-                //cout << cnt << " " << dangers << " " << unknowns << endl;
-                if (cnt == dangers) {
-                    // 全部雷都已经扫出来了，剩下的方块都是安全的，标记一下
-                    UpdateStateAround(board, x, y, S_UNCLICKED, S_SAFE, safe_list);
-                } else if (unknowns == cnt - dangers) {
-                    // 剩下的都是雷，需要标记一下
-                    finish = false; // 下轮继续迭代更新
-                    UpdateStateAround(board, x, y, S_UNCLICKED, S_MARKED, mine_list);
-                } else if (unknowns == 0) {
-                    // 错误的棋盘
-                    cout << "warning: invalid board input, line " << __LINE__ << endl;
-                    cout << "context -> (x = " << x << ", y = " << y << ") , cnt = " << cnt << " , dangers = " << dangers << " , unknowns = " << unknowns << endl;
+                if (isdigit(board[x][y]) && !NaiveFill(board, x, y, safe_list, mine_list, finish)) {
                     return false;
                 }
             }
@@ -531,24 +608,23 @@ static bool HinterStart(vector<string> &board, unordered_set<int> &safe_list, un
         }
     }
 
-    // 3. 对边缘格子进行暴力搜索
-    // SearchEdgeDigitGrid(board, safe_list, mine_list, search_dep, finish);
-
     // 进行多轮迭代
     if (!finish) {
-    	return HinterStart(board, safe_list, mine_list, true);
+    	return HinterStart(board, safe_list, mine_list, search_dep);
 	}
     return true;
 }
 
 // 输出提示
-void OutputResult(vector<string> &board, unordered_set<int> safe_list, unordered_set<int> mine_list) {
+void OutputResult(vector<string> &board, unordered_set<int> &safe_list, unordered_set<int> &mine_list, unordered_set<int> &dfs_list) {
     for (int x = 0, idx = 0; x < rows; ++x) {
         for (int y = 0; y < cols; ++y, ++idx) {
             if (safe_list.find(idx) != safe_list.end()) {
                 print(string(1, board[x][y]), color_black, color_green);
             } else if (mine_list.find(idx) != mine_list.end()) {
                 print(string(1, board[x][y]), color_black, color_red);
+            } else if (dfs_list.find(idx) != dfs_list.end()) {
+                print(string(1, board[x][y]), color_black, color_yellow);
             } else {
                 cout << board[x][y];
             }
@@ -578,12 +654,19 @@ int main() {
     }
     cols = board[0].size();
     // 执行算法并输出提示
-    unordered_set<int> safe_list, mine_list;
-    bool f = HinterStart(board, safe_list, mine_list, search_dep);
+    // dfs 算法算出来的标注未黄色
+    unordered_set<int> safe_list, mine_list, dfs_list;
+    bool f;
+    // f = HinterStart(board, safe_list, mine_list, search_dep);
+    // if (!f) {
+    // 	cout << "Hinter Fails! err = 1" << endl;
+    // 	return 0;
+    // }
+    f = SearchEdgeDigitGrid(board, dfs_list, search_dep);
     if (!f) {
-    	cout << "Hinter Fails!" << endl;
+    	cout << "Hinter Fails! err = 2" << endl;
     	return 0;
     }
-    OutputResult(board, safe_list, mine_list);
+    OutputResult(board, safe_list, mine_list, dfs_list);
     return 0;
 }
