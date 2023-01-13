@@ -22,6 +22,8 @@ For example, prepare a file('input.txt') which contains:
 ./hinter < input.txt
 ```
 
+you can config the dfs search depth by modifying the variable "search_dep" in hinter.cpp.
+
 ## Output
 A board will output which tell you which grids are safe or not for sure.
 - 'S' with green blackground: represents a safe grid so you can click it later.
@@ -34,30 +36,5 @@ If nothing changes, the program fails to work because it isn't smart enough or m
 
 # NOTE
 - Make sure that your input is correct and you should input the whole board instead of some parts of it. If you want to just solve part of your board, please use '#' around it to avoid potential errors.
+- The main idea in this program: intuitive filling + simple basic rule + dfs
 - This program is simple and just for fun. 
-
-# FAIL TO SOLVE RIGHT NOW
-## exp1
-```
-###
-#21
-#10
-```
-
-## exp2
-001#######
-111#######
-M222######
-2M2#######
-12########
-12########
-##0#######
-
-## exp3
-001111####
-111M22####
-M222######
-2M22#12###
-12M2112###
-1212#22###
-M101######

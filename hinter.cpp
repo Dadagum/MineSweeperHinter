@@ -162,7 +162,7 @@ const int hdy[] = {-1, -1, -1, 1, 1, 1};
 constexpr int aSize = 3; // 减法公式独区域方格个数 
 
 // 配置参数
-int search_dep = 6; // dfs 暴力边界搜索深度，可传参传入，默认为 6
+int search_dep = 6; // dfs 暴力边界搜索深度，可改为传参传入
 
 int rows = 0, cols = 0;
 
@@ -573,7 +573,7 @@ static bool SearchEdgeDigitGrid(vector<string> &board, unordered_set<int> &safe_
 }
 
 /**
- * @brief 基本思路：朴素填充 + 减法公式 + 暴力深搜
+ * @brief 基本思路：朴素填充 + 减法公式
  * 
  * @param safe_list 
  * @param mine_list 
@@ -664,15 +664,15 @@ int main() {
         return 0;
     }
     cols = board[0].size();
-    // 执行算法并输出提示
-    // dfs 算法算出来的标注未黄色
     unordered_set<int> safe_list, mine_list, dfs_safe_list, dfs_mine_list;
     bool f;
+    // 先利用基本规则填一下
     f = HinterStart(board, safe_list, mine_list, search_dep);
     if (!f) {
     	cout << "Hinter Fails! err = 1" << endl;
     	return 0;
     }
+    // 利用 dfs 暴力搜索
     f = SearchEdgeDigitGrid(board, dfs_safe_list, dfs_mine_list, search_dep);
     if (!f) {
     	cout << "Hinter Fails! err = 2" << endl;
