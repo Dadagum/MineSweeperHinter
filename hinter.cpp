@@ -407,16 +407,38 @@ static bool TryFillMineAround(vector<string> &board, int x, int y, int search_de
        // cout << "invalid gird x = " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , unknowns = " << g_unknowns[x][y] << endl;
         return false; // 无效节点，直接返回填充失败
     }
-    // 如果剩余的雷数大于 1 且已经到达暴力搜索深度，可以立刻返回，直接认为排面正确
-    if (g_dangers[x][y] > 1 && search_dep == 0) {
-        //cout << "search end " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , search_dep = " << search_dep << endl;
-        return true;
-    }
-    // 填雷是否为唯一解，如果是唯一解则本轮不算暴力搜索轮次，否则搜索轮次 -1
-    if (g_unknowns[x][y] > g_dangers[x][y]) {
-        --search_dep;
-    }
+
     bool ok = true;
+
+    // 剩下的空位置数量和剩余未填充的雷数一样，说明所有空格可以直接填充为雷
+    if (g_dangers[x][y] == g_unknowns[x][y]) {
+        // 直接将四周都填充为雷
+        vector<pii> mine_list = FindGridAround(board, x, y, S_UNCLICKED);
+        UpdateStateAround(board, x, y, S_UNCLICKED, S_MARKED);
+        // 更新各个受影响格子的统计信息
+        for (auto &p : mine_list) {
+            UpdateGridAroundInfo(board, g_unknowns, p.first, p.second, -1);
+            UpdateGridAroundInfo(board, g_dangers, p.first, p.second, -1);
+        }
+        // 先对所有标记为雷的节点进行进一步的 dfs
+        for (auto &p : mine_list) {
+            // 有一个雷节点填错了，因此这个排面都是错的
+            ok = CheckIfValidBoardDfs(board, p.first, p.second, search_dep, g_unknowns, g_dangers);
+            if (!ok) {
+               // cout << "incorrect marking with mine x = " << p.first << ", y = " << p.second << endl;
+                break;
+            }
+        }
+        // 回溯
+        for (auto &p : mine_list) {
+           // cout << "x = " << p.first << " , y = " << p.second << " is changing from " << board[p.first][p.second] << " to " << S_UNCLICKED << endl;
+            board[p.first][p.second] = S_UNCLICKED;
+            UpdateGridAroundInfo(board, g_unknowns, p.first, p.second, 1);
+            UpdateGridAroundInfo(board, g_dangers, p.first, p.second, 1);
+        }
+        return ok;
+    }
+
     // 如果已经没有剩余的雷了(此时必定有空位置)
     if (g_dangers[x][y] == 0) {
        // cout << "no mines rest with x = " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , unknowns = " << g_unknowns[x][y] << endl;
@@ -446,6 +468,17 @@ static bool TryFillMineAround(vector<string> &board, int x, int y, int search_de
         // }
         return ok;
     }
+
+    // 如果剩余的雷数大于 1 且已经到达暴力搜索深度，可以立刻返回，直接认为排面正确
+    if (search_dep == 0) {
+        //cout << "search end " << x << ", y = " << y << " with dangers = " << g_dangers[x][y] << " , search_dep = " << search_dep << endl;
+        return true;
+    }
+    // 填雷是否为唯一解，如果是唯一解则本轮不算暴力搜索轮次，否则搜索轮次 -1
+    if (g_unknowns[x][y] > g_dangers[x][y]) {
+        --search_dep;
+    }
+
     //cout << "try to fill mine around x = " << x << " , y = " << y << endl; 
     // 找出数字节点附近的未开格子，只要找出一种填法是有效的，则该节点就有效
     int nx, ny;
